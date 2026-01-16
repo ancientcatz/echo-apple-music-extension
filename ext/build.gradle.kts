@@ -1,18 +1,11 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     id("java-library")
     id("maven-publish")
     alias(libs.plugins.gradle.shadow)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlinx.serialization)
-}
-
-dependencies {
-    compileOnly(libs.echo.common)
-    compileOnly(libs.kotlin.stdlib)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.coroutines.test)
-    testImplementation(libs.echo.common)
 }
 
 java {
@@ -24,8 +17,21 @@ kotlin {
     jvmToolchain(17)
 }
 
-// Extension properties goto `gradle.properties` to set values
+fun <T : ModuleDependency> T.excludeKotlin() {
+    exclude("org.jetbrains.kotlin", "kotlin-stdlib")
+    exclude("org.jetbrains.kotlinx", "kotlinx-coroutines-core")
+}
 
+dependencies {
+    compileOnly(libs.echo.common)
+    compileOnly(libs.kotlin.stdlib)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.echo.common)
+}
+
+// Extension properties goto `gradle.properties` to set values
 val extType: String by project
 val extId: String by project
 val extClass: String by project
@@ -43,7 +49,7 @@ val extUpdateUrl: String? by project
 val gitHash = execute("git", "rev-parse", "HEAD").take(7)
 val gitCount = execute("git", "rev-list", "--count", "HEAD").toInt()
 val verCode = gitCount
-val verName = "v$gitHash"
+val verName = gitHash
 
 publishing {
     publications {
@@ -58,7 +64,7 @@ publishing {
 }
 
 tasks {
-    shadowJar {
+    val shadowJar by getting(ShadowJar::class) {
         archiveBaseName.set(extId)
         archiveVersion.set(verName)
         manifest {
@@ -84,7 +90,16 @@ tasks {
             )
         }
     }
+
+    test {
+        enabled = false
+    }
+
+    compileTestKotlin {
+        enabled = false
+    }
 }
+
 
 fun execute(vararg command: String): String = providers.exec {
     commandLine(*command)

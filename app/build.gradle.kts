@@ -32,11 +32,36 @@ val extAuthorUrl: String? by project
 val extRepoUrl: String? by project
 val extUpdateUrl: String? by project
 
-val gitHash = execute("git", "rev-parse", "HEAD").take(7)
-val gitCount = execute("git", "rev-list", "--count", "HEAD").toInt()
-val verCode = gitCount
-val verName = "v$gitHash"
+fun execute(vararg command: String): String = providers.exec {
+    commandLine(*command)
+}.standardOutput.asText.get().trim()
 
+fun isSemver(tag: String): Boolean =
+    Regex("""^v\d+\.\d+\.\d+$""").matches(tag.trim())
+
+val allTags = execute("git", "tag", "--list")
+    .lines()
+    .filter { it.isNotBlank() }
+
+val semverTags = allTags.filter { isSemver(it) }
+
+require(semverTags.isNotEmpty()) {
+    "No SemVer tags found. Tags must be like v1.2.3 or 1.2.3"
+}
+
+val sortedSemverTags = semverTags.sortedWith { a, b ->
+    fun parse(t: String) = t.removePrefix("v").split(".").map { it.toInt() }
+    val pa = parse(a)
+    val pb = parse(b)
+    when {
+        pa[0] != pb[0] -> pa[0] - pb[0]
+        pa[1] != pb[1] -> pa[1] - pb[1]
+        else -> pa[2] - pb[2]
+    }
+}
+
+val verName = sortedSemverTags.last()
+val verCode = sortedSemverTags.size
 
 val outputDir = file("${layout.buildDirectory.asFile.get()}/generated/proguard")
 val generatedProguard = file("${outputDir}/generated-rules.pro")
@@ -45,10 +70,7 @@ tasks.register("generateProguardRules") {
     doLast {
         outputDir.mkdirs()
         generatedProguard.writeText(
-            """
-                -dontobfuscate
-                -keep,allowoptimization class dev.brahmkshatriya.echo.extension.$extClass
-                """.trimMargin()
+            "-dontobfuscate\n-keep,allowoptimization class dev.brahmkshatriya.echo.extension.$extClass"
         )
     }
 }
@@ -57,9 +79,18 @@ tasks.named("preBuild") {
     dependsOn("generateProguardRules")
 }
 
+tasks.register("uninstall") {
+    android.run {
+        execute(
+            adbExecutable.absolutePath, "shell", "pm", "uninstall", defaultConfig.applicationId!!
+        )
+    }
+}
+
 android {
     namespace = "dev.brahmkshatriya.echo.extension"
     compileSdk = 36
+
     defaultConfig {
         applicationId = "dev.brahmkshatriya.echo.extension.$extId"
         minSdk = 24
@@ -87,12 +118,18 @@ android {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
                 generatedProguard.absolutePath
             )
         }
+
+        debug {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
-
-fun execute(vararg command: String): String = providers.exec {
-    commandLine(*command)
-}.standardOutput.asText.get().trim()

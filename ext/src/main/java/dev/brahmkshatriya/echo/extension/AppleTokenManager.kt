@@ -29,7 +29,7 @@ class AppleTokenManager(private val client: OkHttpClient) {
         val jsBody = client.newCall(req2).execute().body?.string()
             ?: throw IOException("empty index js")
 
-        val tokenRe = Pattern.compile("eyJh[^\"]*")
+        val tokenRe = Pattern.compile("""eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+""")
         val m2 = tokenRe.matcher(jsBody)
         if (!m2.find()) throw IOException("could not find token")
 

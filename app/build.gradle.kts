@@ -39,20 +39,23 @@ fun execute(vararg command: String): String = providers.exec {
 fun isSemver(tag: String): Boolean =
     Regex("""^v\d+\.\d+\.\d+$""").matches(tag.trim())
 
-val allTags = execute("git", "tag", "--list")
+val allTags = runCatching {
+    execute("git", "tag", "--list")
+}.getOrDefault("")
     .lines()
     .filter { it.isNotBlank() }
 
-val semverTags = allTags.filter { isSemver(it) }
-
-require(semverTags.isNotEmpty()) {
-    "No SemVer tags found. Tags must be like v1.2.3 or 1.2.3"
-}
+val semverTags = allTags.filter(::isSemver)
 
 val sortedSemverTags = semverTags.sortedWith { a, b ->
-    fun parse(t: String) = t.removePrefix("v").split(".").map { it.toInt() }
+    fun parse(t: String) =
+        t.removePrefix("v")
+            .split(".")
+            .map(String::toInt)
+
     val pa = parse(a)
     val pb = parse(b)
+
     when {
         pa[0] != pb[0] -> pa[0] - pb[0]
         pa[1] != pb[1] -> pa[1] - pb[1]
@@ -60,8 +63,14 @@ val sortedSemverTags = semverTags.sortedWith { a, b ->
     }
 }
 
-val verName = sortedSemverTags.last()
-val verCode = sortedSemverTags.size
+val githubTag = System.getenv("GITHUB_REF_NAME")
+    ?.takeIf(::isSemver)
+
+val verName = githubTag
+    ?: sortedSemverTags.lastOrNull()
+    ?: "v0.0.0"
+
+val verCode = maxOf(1, semverTags.size)
 
 val outputDir = file("${layout.buildDirectory.asFile.get()}/generated/proguard")
 val generatedProguard = file("${outputDir}/generated-rules.pro")

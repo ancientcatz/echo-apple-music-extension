@@ -9,6 +9,7 @@ import dev.brahmkshatriya.echo.common.models.Feed.Companion.toFeed
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.settings.Setting
+import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -27,10 +28,21 @@ class AppleMusicExtension : ExtensionClient, LyricsClient, LyricsSearchClient {
 
     override suspend fun onExtensionSelected() {}
 
-    override suspend fun getSettingItems(): List<Setting> = emptyList()
+    override suspend fun getSettingItems(): List<Setting> = listOf(
+        SettingSwitch(
+            title = "Romanized Lyrics",
+            key = ROMANIZED_LYRICS_KEY,
+            summary = "Show transliterated (romanized) lyrics when available.",
+            defaultValue = false
+        )
+    )
 
     override fun setSettings(settings: Settings) {
         setting = settings
+    }
+
+    companion object {
+        private const val ROMANIZED_LYRICS_KEY = "romanized_lyrics"
     }
 
     override suspend fun searchTrackLyrics(clientId: String, track: Track): Feed<Lyrics> {
@@ -99,7 +111,10 @@ class AppleMusicExtension : ExtensionClient, LyricsClient, LyricsSearchClient {
         val body = resp.body.string()
         if (body.isBlank()) return lyrics
 
-        val parsed = getSyncedLyrics(body) ?: return lyrics
+        val romanizedEnabled = setting.getBoolean(ROMANIZED_LYRICS_KEY) ?: false
+        val parsed = (if (romanizedEnabled) getRomanizedLyrics(body) else null)
+            ?: getSyncedLyrics(body)
+            ?: return lyrics
 
         return lyrics.copy(lyrics = parsed)
     }

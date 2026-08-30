@@ -16,6 +16,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Echo Apple Music Extension"
+rootProject.name = "Echo Apple Music LRC Extension"
 include(":app")
 include(":ext")

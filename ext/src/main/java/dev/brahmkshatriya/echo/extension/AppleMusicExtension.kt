@@ -34,6 +34,12 @@ class AppleMusicExtension : ExtensionClient, LyricsClient, LyricsSearchClient {
             key = ROMANIZED_LYRICS_KEY,
             summary = "Show transliterated (romanized) lyrics when available.",
             defaultValue = false
+        ),
+        SettingSwitch(
+            title = "Forced Romanization",
+            key = FORCED_ROMANIZATION_KEY,
+            summary = "When romanized lyrics are enabled, also romanize CJK lines the API did not transliterate, using Google Translate as a fallback.",
+            defaultValue = false
         )
     )
 
@@ -43,6 +49,7 @@ class AppleMusicExtension : ExtensionClient, LyricsClient, LyricsSearchClient {
 
     companion object {
         private const val ROMANIZED_LYRICS_KEY = "romanized_lyrics"
+        private const val FORCED_ROMANIZATION_KEY = "forced_romanization"
     }
 
     override suspend fun searchTrackLyrics(clientId: String, track: Track): Feed<Lyrics> {
@@ -112,7 +119,8 @@ class AppleMusicExtension : ExtensionClient, LyricsClient, LyricsSearchClient {
         if (body.isBlank()) return lyrics
 
         val romanizedEnabled = setting.getBoolean(ROMANIZED_LYRICS_KEY) ?: false
-        val parsed = (if (romanizedEnabled) getRomanizedLyrics(body) else null)
+        val forcedRomanization = setting.getBoolean(FORCED_ROMANIZATION_KEY) ?: false
+        val parsed = (if (romanizedEnabled) getRomanizedLyrics(body, client, forcedRomanization) else null)
             ?: getSyncedLyrics(body)
             ?: return lyrics
 
